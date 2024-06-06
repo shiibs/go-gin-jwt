@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/shiibs/go-gin-jwt/database"
+	"github.com/shiibs/go-gin-jwt/routes"
 )
 
 func init(){
@@ -19,17 +20,22 @@ func init(){
 
 func main(){
 
+	// Close db connection using defer
+	psqlDB, err := database.DBConn.DB()
+
+	if err != nil {
+		log.Println("Error in getting db connection")
+	}
+
+	defer psqlDB.Close()
+
 	port := os.Getenv("port")
 
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
 
-	router.GET("/", func(ctx *gin.Context) {
-		ctx.JSON(200, gin.H{
-			"msg": "HelloWorld",
-		})
-	})
+	routes.SetupRoutes(router)
 
 	log.Fatal(router.Run(":" + port))
 }
