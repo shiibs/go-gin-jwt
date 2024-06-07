@@ -7,6 +7,7 @@ import (
 	"github.com/shiibs/go-gin-jwt/database"
 	"github.com/shiibs/go-gin-jwt/helper"
 	"github.com/shiibs/go-gin-jwt/model"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type formData struct {
@@ -20,6 +21,54 @@ func Login(c *gin.Context){
 		"status": "OK",
 		"msg": "Login route",
 	}
+
+	// Check user credential 
+	var formData formData
+
+	if err := c.ShouldBind(&formData); err != nil {
+		log.Println("Error in json binding")
+		returnObject["mgs"] = "Error in form data"
+		c.JSON(400, returnObject)
+		return
+	}
+
+	var user model.User
+
+	database.DBConn.First(&user, "email=?", formData.Email)
+
+	if user.ID == 0 {
+		returnObject["msg"] = "User not found"
+		
+		c.JSON(400, returnObject)
+		return 
+	}
+
+	// Validate password 
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(formData.Password))
+
+
+	if err != nil {
+		log.Println("Invalid password.")
+
+		returnObject["msg"] = "Invalid password"
+		c.JSON(401, returnObject)
+		return
+	}
+
+	// create jwt token
+
+	token, err := helper.GenerateToken(user)
+
+	if err != nil {
+		returnObject["msg"] = "Token creation error."
+		c.JSON(401, returnObject)
+		return
+	}
+
+	returnObject["token"] = token
+	returnObject["user"] = user
+	returnObject["status"] = "OK"
+	returnObject["msg"] = "User authenticated"
 	c.JSON(200, returnObject)
 
 }
@@ -63,4 +112,43 @@ func Register(c *gin.Context){
 
 func Logout(){}
 
-func RefreshToken(){}
+func RefreshToken(c *gin.Context){
+	returnObject := gin.H{
+		"status": "OK",
+		"msg":    "Refresh Token  route",
+	}
+
+	email, exists := c.Get("email")
+
+	if !exists {
+		log.Println("Email not found")
+		returnObject["msg"] = "Email not found."
+		c.JSON(401, returnObject)
+		return
+	}
+
+	var user model.User 
+
+	database.DBConn.First(&user, "email=?", email)
+
+	if user.ID == 0 {
+		log.Println("User not found.")
+		returnObject["msg"] = "User not found."
+
+		c.JSON(400, returnObject)
+		return
+	}
+
+	token, err := helper.GenerateToken(user)
+
+	if err != nil {
+		returnObject["msg"] = "Token creation error."
+		c.JSON(401, returnObject)
+		return
+	}
+
+	returnObject["token"] = token
+	returnObject["user"] = user
+
+	c.JSON(200, returnObject)
+}
